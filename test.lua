@@ -4,10 +4,10 @@ local lunatest  = require "lunatest"
 
 pcall(require, "luacov")
 
-local assert_true,  assert_false     = lunatest.assert_true,  lunatest.assert_false
-local assert_match, assert_not_match = lunatest.assert_match, lunatest.assert_not_match
-local assert_nil,   assert_not_nil   = lunatest.assert_nil,   lunatest.assert_not_nil
-local assert_equal, assert_not_equal = lunatest.assert_equal, lunatest.assert_not_equal
+local assert_true,  assert_false     = assert_true  or lunatest.assert_true,  assert_false     or lunatest.assert_false
+local assert_match, assert_not_match = assert_match or lunatest.assert_match, assert_not_match or lunatest.assert_not_match
+local assert_nil,   assert_not_nil   = assert_nil   or lunatest.assert_nil,   assert_not_nil   or lunatest.assert_not_nil
+local assert_equal, assert_not_equal = assert_equal or lunatest.assert_equal, assert_not_equal or lunatest.assert_not_equal
 
 local test_async = true
 

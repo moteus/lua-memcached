@@ -54,9 +54,21 @@ local Memcached = {}
 
 ---(Re-)Connect to the memcached server.
 function Memcached:connect()
+   if self._defer then 
+      local conn, err = socket.tcp()
+      if not conn then return false, err end
+      local ok, err = async_tcp_connect(conn, self._host, self._port, 60000, self._defer, 0)
+      if not conn then
+         conn:close()
+         return nil, err
+      end
+      conn:settimeout(0)
+      self._s = conn
+      return conn
+   end
+
    local conn, err = socket.connect(self._host, self._port)
-   if not conn then return false, err end
-   if self._defer then conn:settimeout(0) end
+   if not conn then return nil, err end
    self._s = conn
    return conn
 end
