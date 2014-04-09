@@ -60,7 +60,7 @@ function Memcached:connect()
       local ok, err = async_tcp_connect(conn, self._host, self._port, 60000, self._defer, 0)
       if not conn then
          conn:close()
-         return nil, err
+         return false, err
       end
       conn:settimeout(0)
       self._s = conn
@@ -68,7 +68,7 @@ function Memcached:connect()
    end
 
    local conn, err = socket.connect(self._host, self._port)
-   if not conn then return nil, err end
+   if not conn then return false, err end
    self._s = conn
    return conn
 end
