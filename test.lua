@@ -1,5 +1,5 @@
-require "memcached"
-require "socket"
+local memcached = require "memcached"
+local socket    = require "socket"
 require "lunatest"
 
 pcall(require, "luacov")
