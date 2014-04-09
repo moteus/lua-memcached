@@ -137,7 +137,7 @@ local function store_cmd(self, cmd, key, data, exptime,
 
    local buf = { cmd, " ", key, " ",
                  flags or 0, " ", exptime or 0, " ",
-                 data:len() }
+                 #data }
    if cas_id then buf[#buf+1] = " " .. cas_id end
    if noreply then buf[#buf+1] = " noreply" end
    buf[#buf+1] = "\r\n"
