@@ -31,7 +31,12 @@ end
 
 
 -- Dependencies
-require "socket"
+local socket = require "socket"
+local async_socket = require "async_socket"
+local async_tcp_connect = async_socket.async_tcp_connect
+local async_tcp_receive = async_socket.async_tcp_receive
+local async_tcp_send    = async_socket.async_tcp_send
+
 local socket, string, table = socket, string, table
 local assert, print, setmetatable, type, tonumber, tostring =
    assert, print, setmetatable, type, tonumber, tostring
@@ -64,21 +69,16 @@ end
 
 ---Send a command, asynchronously.
 function Memcached:send(msg)
-   trace("MSG: ", msg:sub(1, -3))
    local sock, err = init_con(self)
    if not sock then return false, err end
+   local ok, err
    if self:is_async() then
-      while true do
-         local ok, err = sock:send(msg)
-         if ok then return ok
-         elseif err ~= "timeout" then return false, err
-         else
-            self:defer()
-         end
-      end
+      ok, err = async_tcp_send(sock, msg, nil, nil, nil, self._defer)
    else
-      return sock:send(msg)
+      ok, err = sock:send(msg)
    end
+   if err == 'closed' then self._s = nil end
+   return ok, err
 end
 
 
@@ -86,22 +86,15 @@ end
 function Memcached:receive(spec)
    local sock, err = init_con(self)
    if not sock then return false, err end
+   spec = spec or '*l'
+   local ok, err, rest
    if self:is_async() then
-      while true do
-         local data, err, rest = sock:receive(spec)
-         local read = data or rest
-
-         if read and read ~= "" then
-            trace("RECV: ", read)
-            return read
-         elseif err == "timeout" then self:defer()
-         else
-            return false, err
-         end
-      end
+      ok, err, rest = async_tcp_receive(sock, spec, nil, self._defer)
    else
-      return sock:receive(spec)
+      ok, err, rest = sock:receive(spec)
    end
+   if err == 'closed' then self._s = nil end
+   return ok, err, rest
 end
 
 
