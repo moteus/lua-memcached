@@ -29,6 +29,12 @@ local function trace(...)
    if DEBUG then print(...) end
 end
 
+local STATS_KEYS = {
+   malloc = true,
+   sizes = true,
+   slabs = true,
+   items = true,
+}
 
 -- Dependencies
 local socket = require "socket"
@@ -282,8 +288,13 @@ end
 
 
 ---Get a table with info about the memcached server.
-function Memcached:stats()
-   local line, err = self:send_recv("stats\r\n")
+function Memcached:stats(key)
+   key = key or ''
+   if (key ~= '') and (not STATS_KEYS[key]) then
+      return error(fmt("Unknown stats key '%s'", key))
+   end
+
+   local line, err = self:send_recv("stats " ..key .. "\r\n")
    local s = {}
    while line ~= "END" do
       if not line then return false, err end
