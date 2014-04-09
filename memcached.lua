@@ -37,28 +37,9 @@ local assert, print, setmetatable, type, tonumber, tostring =
    assert, print, setmetatable, type, tonumber, tostring
 
 
----Non-blocking Lua client for memcached.
-module("memcached")
 
 local fmt = string.format
 local Memcached = {}
-
-
----Connect to a memcached server, returning a Memcached handle.
--- @param host Defaults to localhost.
--- @param port Defaults to 11211.
--- @param defer_hook An optional function, called to defer, enabling
--- non-blocking operation.
-function connect(host, port, defer_hook)
-   host, port = host or "localhost", port or 11211
-
-   local m = setmetatable({ _host=host, _port=port,
-                            _defer = defer_hook},
-                       {__index = Memcached })
-   m:connect()
-   return m
-end
-
 
 ---(Re-)Connect to the memcached server.
 function Memcached:connect()
@@ -73,9 +54,10 @@ end
 local function init_con(self)
    local sock = self._s
    if not sock then
-      sock, err = Memcached:connect()
+      local err
+      sock, err = self:connect()
+      if not sock then return false, err end
    end
-   if not sock then return false, err end
    return sock
 end
 
@@ -269,7 +251,7 @@ end
 function Memcached:delete(key, noreply)
    local msg = fmt("delete %s%s\r\n",
                    key, noreply and " noreply" or "")
-   local ok, err = self:send_recv(msg)
+   local res, err = self:send_recv(msg)
    return res and res == "DELETED", res or false, err
 end
 
@@ -312,6 +294,7 @@ function Memcached:stats()
    local s = {}
    while line ~= "END" do
       if not line then return false, err end
+      if line == 'ERROR' then return false, "ERROR" end
       local k,v = line:match("STAT ([^ ]+) (.*)")
       if k ~= "version" then v = tonumber(v) end
       s[k] = v
@@ -331,3 +314,27 @@ end
 function Memcached:quit()
    return self:send_recv("quit\r\n")
 end
+
+---Non-blocking Lua client for memcached.
+local _M = {}
+
+if _G._VERSION == "Lua 5.1" then
+   memcached = _M
+end
+
+---Connect to a memcached server, returning a Memcached handle.
+-- @param host Defaults to localhost.
+-- @param port Defaults to 11211.
+-- @param defer_hook An optional function, called to defer, enabling
+-- non-blocking operation.
+function _M.connect(host, port, defer_hook)
+   host, port = host or "localhost", port or 11211
+
+   local m = setmetatable({ _host=host, _port=port,
+                            _defer = defer_hook},
+                       {__index = Memcached })
+   m:connect()
+   return m
+end
+
+return _M
