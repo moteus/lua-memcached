@@ -121,6 +121,10 @@ function Memcached:defer() self._defer() end
 ---Is the connection running asynchronously?
 function Memcached:is_async() return self._defer ~= nil end
 
+local function get_key(self, key)
+   if self.on_key then return self:on_key(key) end
+   return key
+end
 
 --====================
 --= Storage commands =
@@ -128,7 +132,7 @@ function Memcached:is_async() return self._defer ~= nil end
 
 local function store_cmd(self, cmd, key, data, exptime,
                          flags, noreply, cas_id)
-   
+   key = get_key(self, key)
    if type(data) == "number" then data = tostring(data) end
    if not key then return false, "no key"
    elseif type(data) ~= "string" then return false, "no data" end
@@ -143,6 +147,8 @@ local function store_cmd(self, cmd, key, data, exptime,
    buf[#buf+1] = "\r\n"
    buf[#buf+1] = data
    buf[#buf+1] = "\r\n"
+
+   if noreply then return self:send(table.concat(buf)) end
    local res, err = self:send_recv(table.concat(buf))
    return res and res == "STORED", res or false, err
 end
@@ -203,33 +209,43 @@ end
 --======================
 
 local function do_get(self, cmd, keys, pattern)
-   if type(keys) == "string" then keys = { keys } end
-   local ct = #keys
+   local mk = {} -- map key
+   local rk      -- real keys
+   if type(keys) == "string" then 
+      keys = { get_key(self, keys) }
+   else
+      rk = {}
+      for i, key in ipairs(keys) do
+         rk[i]       = get_key(self, key)
+         mk[ rk[i] ] = key
+      end
+   end
+
    local line, err = self:send_recv(fmt("%s %s\r\n", cmd,
-                                        table.concat(keys, " ")))
+                                        table.concat(rk or keys, " ")))
    local res, key, flags, len, data, cas = {}
    while line ~= "END" do
       if not line then return false, err end
       key, flags, len, cas = line:match(pattern)
-      if not key then return false, err end
+      if not key then return false, 'bad response:' .. line end
 
       data, err = self:receive(tonumber(len) + 2):sub(1, -3)
       if not data then return false, err end
 
       flags = tonumber(flags)
-      res[key] = { data=data, flags=flags, cas=cas }
+      res[ mk[key] or key ] = { data=data, flags=flags, cas=cas }
       line, err = self:receive()
    end
 
-   if ct == 1 then return data, flags, cas end
+   if not rk then return data, flags, cas end
    return res
 end
 
 
 ---Get value and flags for one or more keys.
 -- @param keys Key or {"list", "of", "keys"}.
--- @return For one key, returns (value, flags). For a list of keys,
--- returns a { key1={data="data", flags=f }, key2=...} table.
+-- @return For one key, returns (value, flags, cas). For a list of keys,
+-- returns a { key1={data="data", flags=f, cas=cas}, key2=...} table.
 function Memcached:get(keys)
    return do_get(self, "get", keys, "^VALUE ([^ ]+) (%d+) (%d+)")
 end
@@ -248,8 +264,10 @@ end
 
 ---Delete a key.
 function Memcached:delete(key, noreply)
+   key = get_key(self, key)
    local msg = fmt("delete %s%s\r\n",
                    key, noreply and " noreply" or "")
+   if noreply then return self:send(msg) end
    local res, err = self:send_recv(msg)
    return res and res == "DELETED", res or false, err
 end
@@ -262,16 +280,21 @@ end
 
 
 local function adjust_key(self, cmd, key, val, noreply)
+   key = get_key(self, key)
    assert(val, "No number")
    noreply = noreply and " noreply" or ""
    local msg = fmt("%s %s %d%s\r\n", cmd, key, val, noreply)
 
    if noreply ~= "" then
       return self:send(msg)
-   else
-      local res, err = self:send_recv(msg)
-      if res then return tonumber(res) else return false, err end
    end
+
+   local res, err = self:send_recv(msg)
+   if not res then
+     return false, err
+   end
+
+  return tonumber(res)
 end
 
 
