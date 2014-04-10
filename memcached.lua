@@ -51,6 +51,7 @@ local assert, print, setmetatable, type, tonumber, tostring =
 
 local fmt = string.format
 local Memcached = {}
+local Memcached_mt = {__index = Memcached}
 
 ---(Re-)Connect to the memcached server.
 function Memcached:connect()
@@ -369,9 +370,11 @@ end
 function _M.connect(host, port, defer_hook)
    host, port = host or "localhost", port or 11211
 
-   local m = setmetatable({ _host=host, _port=port,
-                            _defer = defer_hook},
-                       {__index = Memcached })
+   local m = setmetatable({
+      _host=host, _port=port,
+      _defer = defer_hook
+   }, Memcached_mt)
+
    m:connect()
    return m
 end
